@@ -1,0 +1,70 @@
+[build-system]
+requires = ["hatchling>=1.20"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["."]
+
+[project]
+name = "kb-fusion"
+version = "0.1.0"
+description = "Hybrid semantic search for local knowledge bases (SQLite FTS5 + embeddings)."
+authors = [{ name = "Kortix", email = "oss@kortix.so" }]
+license = { text = "Apache-2.0" }
+readme = "README.md"
+requires-python = ">=3.9"
+dependencies = [
+  "numpy>=1.24",
+  "openai>=1.30.0",
+  "pandas>=2.3.2",
+]
+
+[project.urls]
+Homepage = "https://github.com/kortix/kb-fusion"
+Issues = "https://github.com/kortix/kb-fusion/issues"
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.2",
+  "mypy>=1.10",
+  "ruff>=0.5.0",
+  "black>=24.3.0",
+  "pre-commit>=3.7.0",
+]
+build = [
+  "nuitka>=2.4",
+  "pyinstaller>=6.6",
+]
+
+[tool.black]
+line-length = 100
+target-version = ["py39", "py310", "py311"]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+select = ["E", "F", "I", "UP", "B"]
+ignore = ["E501"]
+exclude = ["dist", "build", ".venv"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_unused_configs = true
+warn_redundant_casts = true
+warn_unused_ignores = true
+no_implicit_optional = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+strict_equality = true
+exclude = "tests/|dist/|build/"
+
+[tool.pytest.ini_options]
+addopts = "-q"
+testpaths = ["tests"]
+
+# Optional packager hints
+[tool.nuitka]
+standalone = true
+onefile = true
+nofollow_imports = true
+warn_unusual_code = true
