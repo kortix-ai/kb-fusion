@@ -3,3 +3,7 @@ __pycache__/*
 .env
 .venv/*
 bench/*
+kb_fusion.build/*
+kb_fusion.dist/*
+kb_fusion.onefile-build/*
+kb

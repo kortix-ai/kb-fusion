@@ -2,37 +2,8 @@ import os, time, sqlite3, hashlib, json, re
 from pathlib import Path
 from collections import OrderedDict
 
-
-def load_env():
-    """Load .env with priority: CWD → $KB_DIR → ~/.config/kb-fusion → package dir"""
-    search_paths = [
-        os.getcwd(),
-        os.getenv("KB_DIR", "~/knowledge-base").replace("~", os.path.expanduser("~")),
-        os.path.expanduser("~/.config/kb-fusion"),
-        os.path.dirname(__file__)
-    ]
-    
-    for base_path in search_paths:
-        env_path = os.path.join(base_path, '.env')
-        if os.path.exists(env_path):
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        os.environ[key.strip()] = value.strip()
-            break
-
-load_env()
-# KB config
-KB_DIR = Path(os.getenv("KB_DIR", "~/knowledge-base")).expanduser()
-KB_DB = KB_DIR / "knbase.db"
-SUPPORTED_EXTS = {'.txt', '.md', '.json', '.jsonl'}
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
-OPENAI_DIM = os.getenv("OPENAI_DIM", "256")
-PREPROC_VER = 2
-CHUNKER_VER = 4
-VERSION_KEY = f"{OPENAI_MODEL}:{OPENAI_DIM}:p{PREPROC_VER}:c{CHUNKER_VER}"
+from kb_config import KB_DIR, KB_DB, SUPPORTED_EXTS, VERSION_KEY
+import kb_config
 
 # Fast LRU cache for file stats to avoid disk reads
 _file_cache = OrderedDict()
@@ -268,7 +239,8 @@ def _do_index(path):
             return file_uid
         
         # Need to index/re-index
-        print(f"Indexing: {path.name}")
+        if kb_config.DEBUG:
+            print(f"Indexing: {path.name}")
         
         # Extract and chunk
         raw_text = _extract_text(path)
@@ -317,7 +289,8 @@ def _do_index(path):
                    (file_uid, str(path), size, mtime, content_sig, VERSION_KEY, time.time(), 'active'))
         
         con.commit()
-        print(f"Indexed: {len(fresh_spans)} new spans, {len(stale_hashes)} removed")
+        if kb_config.DEBUG:
+            print(f"Indexed: {len(fresh_spans)} new spans, {len(stale_hashes)} removed")
         
         # Update cache
         cache_key = _get_file_cache_key(path)
@@ -349,7 +322,8 @@ def ingest_many(paths_or_dir):
             file_uid = ensure_indexed(path)
             file_uids.append(file_uid)
         except Exception as e:
-            print(f"Failed to index {path}: {e}")
+            if kb_config.DEBUG:
+                print(f"Failed to index {path}: {e}")
     
     # Housekeeping after batch (separate connection)
     if file_uids:
@@ -359,7 +333,8 @@ def ingest_many(paths_or_dir):
             con.execute("PRAGMA wal_checkpoint(TRUNCATE)")
             con.close()
         except Exception as e:
-            print(f"Housekeeping failed: {e}")
+            if kb_config.DEBUG:
+                print(f"Housekeeping failed: {e}")
     
     return file_uids
 
@@ -385,7 +360,8 @@ def sweep(retention_days=30):
         )
 
         con.commit()
-        print(f"Swept: {len(missing_uids)} missing files; embeddings pruned (>{retention_days}d and orphans)")
+        if kb_config.DEBUG:
+            print(f"Swept: {len(missing_uids)} missing files, orphaned embeddings cleaned")
     finally:
         con.close()
         

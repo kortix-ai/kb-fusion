@@ -1,30 +1,11 @@
 import os, re, time, sqlite3, json, numpy as np, hashlib, unicodedata
-import kb_store
 from collections import OrderedDict
 from concurrent.futures import ThreadPoolExecutor, TimeoutError
 from openai import OpenAI
 
-def load_env():
-    """Load .env with priority: CWD → $KB_DIR → ~/.config/kb-fusion → package dir"""
-    search_paths = [
-        os.getcwd(),
-        os.getenv("KB_DIR", "~/knowledge-base").replace("~", os.path.expanduser("~")),
-        os.path.expanduser("~/.config/kb-fusion"),
-        os.path.dirname(__file__)
-    ]
-    
-    for base_path in search_paths:
-        env_path = os.path.join(base_path, '.env')
-        if os.path.exists(env_path):
-            with open(env_path, 'r') as f:
-                for line in f:
-                    line = line.strip()
-                    if line and not line.startswith('#') and '=' in line:
-                        key, value = line.split('=', 1)
-                        os.environ[key.strip()] = value.strip()
-            break
-
-load_env()
+import kb_config  # ensures mode-specific env behavior is applied
+from kb_config import OPENAI_MODEL, OPENAI_DIM  # keep model/dim in sync with VERSION_KEY
+import kb_store
 
 if not os.getenv('OPENAI_API_KEY'):
     raise ValueError("OPENAI_API_KEY not set")
@@ -36,13 +17,9 @@ SENT_WORDS = int(os.getenv("KB_SENT_WORDS", 60))
 K_SQL = int(os.getenv("KB_K_SQL", 600)) 
 K_FINAL = int(os.getenv("KB_K_FINAL", 20))
 TOP_OAI = int(os.getenv("KB_TOP_OAI", 28))
-OPENAI_MODEL = os.getenv("OPENAI_MODEL", "text-embedding-3-small")
-OPENAI_DIM = int(os.getenv("OPENAI_DIM", 256))
 OAI_TIMEOUT = float(os.getenv("OAI_TIMEOUT", 2.0))
 JACCARD_THRESHOLD = float(os.getenv("JACCARD_THRESHOLD", 0.83))
 RRF_K = int(os.getenv("RRF_K", 60))
-PREPROC_VER = os.getenv("PREPROC_VER", "2")      # Enhanced version
-CHUNKER_VER = os.getenv("CHUNKER_VER", "4")      # Ace code version
 
 # Find PRF expansion terms from top docs with original stopwords
 STOP = {
@@ -455,7 +432,8 @@ def _search_single_sentence(q, file_uid, file_path, cur, cache_con, db_path=None
     
     bm25_ms = round((time.time() - t0) * 1000, 2)
     if not rows:
-        print(f"LAT | S1_sql={bm25_ms}ms | 0 hits")
+        if kb_config.DEBUG:
+            print(f"LAT | S1_sql={bm25_ms}ms | 0 hits")
         return []
 
     # PRF - RESTORE THIS LOGIC
@@ -485,10 +463,12 @@ def _search_single_sentence(q, file_uid, file_path, cur, cache_con, db_path=None
                     
                     if overlap >= 0.4:  # drift guard passed
                         rows = prf_rows
-                        prf_ms = round((time.time() - t_prf) * 1000, 2)
-                        print(f"PRF | exp_terms={len(expansion_terms)} | overlap={overlap:.2f} | {prf_ms}ms")
+                        if kb_config.DEBUG:
+                            prf_ms = round((time.time() - t_prf) * 1000, 2)
+                            print(f"PRF | exp_terms={len(expansion_terms)} | overlap={overlap:.2f} | {prf_ms}ms")
                     else:
-                        print(f"PRF | DRIFT | overlap={overlap:.2f} < 0.4 | fallback")
+                        if kb_config.DEBUG:
+                            print(f"PRF | DRIFT | overlap={overlap:.2f} < 0.4 | fallback")
 
     # Slice to TOP_OAI and dedupe 
     ids = [i for i, _, _, _ in rows[:TOP_OAI]]
@@ -690,7 +670,8 @@ def _search_single_sentence(q, file_uid, file_path, cur, cache_con, db_path=None
     cache_hits = len(ids) - len(need_idx) if need_idx else len(ids)
     cache_pct = round(100 * cache_hits / len(ids), 1) if ids else 0
     
-    print(f"LAT | docs={len(out)} | rerank={rerank_pool} | embeds={nonzero_sims}/{len(ids)} | embed_batch={len(need_texts)} | cache={cache_pct}% | vec_cov={vector_coverage:.1%} | {round((time.time()-t_all)*1000,1)}ms")
+    if kb_config.DEBUG:
+        print(f"LAT | docs={len(out)} | rerank={rerank_pool} | embeds={nonzero_sims}/{len(ids)} | embed_batch={len(need_texts)} | cache={cache_pct}% | vec_cov={vector_coverage:.1%} | {round((time.time()-t_all)*1000,1)}ms")
     return out
 
 __all__ = ["semantic_search"]

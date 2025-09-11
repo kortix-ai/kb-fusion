@@ -2,6 +2,9 @@
 import argparse, sys, json, os, sqlite3, time
 from typing import List
 
+# Set debug BEFORE importing other modules
+import kb_config
+
 # flat imports
 from kb_store import (
     ensure_indexed,
@@ -169,6 +172,7 @@ def build_parser() -> argparse.ArgumentParser:
                      help="file with one query per line, or '-' to read queries from stdin")
     p_s.add_argument("-k", "--limit", type=int, default=10, help="max results (default: 10)")
     p_s.add_argument("--json", action="store_true", help="print raw JSON")
+    p_s.add_argument("--debug", action="store_true", help="enable debug output")
     p_s.set_defaults(func=cmd_search)
 
     # sweep / maintenance
@@ -183,13 +187,16 @@ def build_parser() -> argparse.ArgumentParser:
                       help="embedding retention for generic sweep (default: 30)")
     p_sw.add_argument("--no-optimize", action="store_true",
                       help="skip FTS optimize and WAL checkpoint")
+    p_sw.add_argument("--debug", action="store_true", help="enable debug output")
     p_sw.set_defaults(func=cmd_sweep)
 
     # utility
     p_dp = sub.add_parser("db-path", help="print KB database path")
+    p_dp.add_argument("--debug", action="store_true", help="enable debug output")
     p_dp.set_defaults(func=cmd_dbpath)
 
     p_ls = sub.add_parser("ls", help="list indexed files")
+    p_ls.add_argument("--debug", action="store_true", help="enable debug output")
     p_ls.set_defaults(func=cmd_ls)
 
     return p
@@ -198,6 +205,14 @@ def build_parser() -> argparse.ArgumentParser:
 def main(argv=None) -> int:
     parser = build_parser()
     args = parser.parse_args(argv)
+    
+    # Set global debug flag
+    debug_enabled = getattr(args, 'debug', False)
+    kb_config.set_debug(debug_enabled)
+    
+    if debug_enabled:
+        print(f"[DEBUG] Debug mode enabled, KB_DIR={kb_config.KB_DIR}")
+    
     return args.func(args)
 
 
