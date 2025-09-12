@@ -2,6 +2,8 @@
 import argparse, sys, json, os, sqlite3, time
 from typing import List
 
+__version__ = "0.1.0"
+
 # Set debug BEFORE importing other modules
 import kb_config
 
@@ -159,9 +161,16 @@ def cmd_ls(_args) -> int:
         return 2
 
 
+def cmd_version(_args) -> int:
+    """Print version information."""
+    print(f"kb-fusion {__version__}")
+    return 0
+
+
 # ---------- parser / entry ----------
 def build_parser() -> argparse.ArgumentParser:
     p = argparse.ArgumentParser(prog="kb", description="kb-fusion CLI")
+    p.add_argument("-v", "--version", action="version", version=f"kb-fusion {__version__}")
     sub = p.add_subparsers(dest="cmd", required=True)
 
     # search (auto-ingests the file on first run)
@@ -198,6 +207,9 @@ def build_parser() -> argparse.ArgumentParser:
     p_ls = sub.add_parser("ls", help="list indexed files")
     p_ls.add_argument("--debug", action="store_true", help="enable debug output")
     p_ls.set_defaults(func=cmd_ls)
+
+    p_v = sub.add_parser("version", help="show version information")
+    p_v.set_defaults(func=cmd_version)
 
     return p
 
